@@ -1,3 +1,13 @@
+import os
+import yt_dlp
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+
+TOKEN = os.getenv("TOKEN")
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Send me a video link 😎")
+
 async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
 
@@ -21,3 +31,10 @@ async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         await update.message.reply_text(f"Error: {str(e)}")
+
+app = ApplicationBuilder().token(TOKEN).build()
+
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.TEXT, download))
+
+app.run_polling()
