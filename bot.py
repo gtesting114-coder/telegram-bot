@@ -3,7 +3,7 @@ import yt_dlp
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-TOKEN = os.getenv("8210783325:AAFoWXeLK_CLhhWM7nSOdLfjEGuYQd4rvlE")
+TOKEN = os.getenv("TOKEN")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Send me the video link 😎")
