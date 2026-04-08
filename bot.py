@@ -14,8 +14,9 @@ async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Downloading... ⏳")
 
     ydl_opts = {
-        'outtmpl': 'video.%(ext)s',
-        'format': 'mp4'
+    'format': 'best',
+    'outtmpl': 'video.%(ext)s',
+    'noplaylist': True
     }
 
     try:
