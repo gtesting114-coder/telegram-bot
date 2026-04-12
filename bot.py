@@ -8,7 +8,7 @@ TOKEN = os.getenv("TOKEN")
 user_links = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🔥 The Ultimate Video Downloader\n\nSend me a video link 😎")
+    await update.message.reply_text("🔥 sugunan The Ultimate Video Downloader\n\nSend me a video link 😎")
 
 # STEP 1: User sends link
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -57,7 +57,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.message.reply_text("🔍 Fetching video info...")
 
     try:
-        # Get info without downloading
+        # Get info
         with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
             info = ydl.extract_info(url, download=False)
 
@@ -65,7 +65,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         thumbnail = info.get("thumbnail")
         filesize = info.get("filesize") or info.get("filesize_approx")
 
-        # Format size
         if filesize:
             size_mb = round(filesize / (1024 * 1024), 2)
             size_text = f"{size_mb} MB"
@@ -74,7 +73,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         caption_preview = f"🎬 {title}\n📦 Size: {size_text}"
 
-        # Send thumbnail preview
         if thumbnail:
             await query.message.reply_photo(photo=thumbnail, caption=caption_preview)
         else:
@@ -82,28 +80,27 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await query.message.reply_text("⏳ Downloading...")
 
-        # FORMAT LOGIC
+        # FORMAT (NO FFMPEG REQUIRED)
         if is_pinterest:
             fmt = "best"
         elif query.data == "360":
-            fmt = "bestvideo[height<=360]+bestaudio/best[height<=360]"
+            fmt = "best[height<=360][ext=mp4]/best"
         elif query.data == "720":
-            fmt = "bestvideo[height<=720]+bestaudio/best[height<=720]"
+            fmt = "best[height<=720][ext=mp4]/best"
         elif query.data == "1080":
-            fmt = "bestvideo[height<=1080]+bestaudio/best[height<=1080]"
+            fmt = "best[height<=1080][ext=mp4]/best"
         elif query.data == "best":
-            fmt = "bestvideo+bestaudio/best"
+            fmt = "best[ext=mp4]/best"
         elif query.data == "audio":
             fmt = "bestaudio/best"
 
         ydl_opts = {
             'format': fmt,
             'outtmpl': 'file.%(ext)s',
-            'merge_output_format': 'mp4',
             'noplaylist': True
         }
 
-        # Audio processing
+        # Audio conversion (may fail without ffmpeg, but safe fallback)
         if query.data == "audio":
             ydl_opts['postprocessors'] = [{
                 'key': 'FFmpegExtractAudio',
@@ -113,18 +110,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await query.message.reply_text("⚙️ Processing...")
 
-        # Download
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
-        # Fix audio filename
         if query.data == "audio":
             filename = filename.rsplit(".", 1)[0] + ".mp3"
 
         await query.message.reply_text("📤 Uploading...")
 
-        # FINAL SEND WITH CAPTION 🔥
         with open(filename, 'rb') as f:
             if query.data == "audio":
                 await query.message.reply_audio(
