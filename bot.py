@@ -9,6 +9,7 @@ user_links = {}
 users = set()
 download_count = 0
 
+# START
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🔥 Stable Video Downloader\n\nSend YouTube or Instagram link 😎")
 
@@ -25,6 +26,31 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("Choose format 👇", reply_markup=InlineKeyboardMarkup(keyboard))
 
+# YOUTUBE OPTIONS BUILDER
+def get_ydl_opts(fmt, use_cookies=False):
+    opts = {
+        'format': fmt,
+        'outtmpl': 'file.%(ext)s',
+        'noplaylist': True,
+        'quiet': True,
+        'retries': 10,
+        'fragment_retries': 10,
+        'geo_bypass': True,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+        },
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web']
+            }
+        }
+    }
+
+    if use_cookies:
+        opts['cookiefile'] = 'cookies.txt'
+
+    return opts
+
 # BUTTON HANDLER
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global download_count
@@ -37,7 +63,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     is_instagram = "instagram.com" in url
 
-    # QUALITY OPTIONS (only YouTube)
+    # QUALITY OPTIONS (YouTube only)
     if query.data == "video" and not is_instagram:
         keyboard = [
             [InlineKeyboardButton("360p", callback_data="360")],
@@ -48,7 +74,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     download_count += 1
-
     await query.message.reply_text("⏳ Downloading...")
 
     try:
@@ -64,8 +89,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 }
             }
 
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                filename = ydl.prepare_filename(info)
+
         else:
-            # YOUTUBE (improved)
+            # YOUTUBE (multi-layer system)
             if query.data == "360":
                 fmt = "best[height<=360]/best"
             elif query.data == "720":
@@ -75,28 +104,33 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             elif query.data == "audio":
                 fmt = "bestaudio/best"
 
-            ydl_opts = {
-                'format': fmt,
-                'outtmpl': 'file.%(ext)s',
-                'noplaylist': True,
-                'quiet': True,
-                'retries': 10,
-                'fragment_retries': 10,
-                'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36'
-                },
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': ['android', 'web']
-                    }
-                }
-            }
+            success = False
 
-        # DOWNLOAD
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
+            # 1️⃣ Try normal
+            try:
+                with yt_dlp.YoutubeDL(get_ydl_opts(fmt)) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    filename = ydl.prepare_filename(info)
+                success = True
+            except:
+                pass
 
+            # 2️⃣ Retry with cookies
+            if not success:
+                try:
+                    with yt_dlp.YoutubeDL(get_ydl_opts(fmt, use_cookies=True)) as ydl:
+                        info = ydl.extract_info(url, download=True)
+                        filename = ydl.prepare_filename(info)
+                    success = True
+                except:
+                    pass
+
+            # 3️⃣ Fail
+            if not success:
+                await query.message.reply_text("❌ This video is protected by YouTube.\nTry another video.")
+                return
+
+        # AUDIO FIX
         if query.data == "audio":
             filename = filename.rsplit(".", 1)[0] + ".mp3"
 
@@ -120,7 +154,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if is_instagram:
             await query.message.reply_text("❌ Instagram blocked this reel.")
         else:
-            await query.message.reply_text("❌ Video blocked by YouTube. Try another link.")
+            await query.message.reply_text("❌ Download failed. Try another link.")
 
 # STATS
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -128,7 +162,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📊 Stats\n👤 Users: {len(users)}\n📥 Downloads: {download_count}"
     )
 
-# START APP
+# APP START
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
